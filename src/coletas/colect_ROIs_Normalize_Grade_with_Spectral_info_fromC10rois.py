@@ -119,15 +119,7 @@ class ClassMosaic_indexs_Spectral(object):
             "2024": 0.2761
         },
     }
-    # featureBands = [
-    #     'blue_median','blue_median_wet','blue_median_dry','blue_min','blue_stdDev', 
-    #     'green_median','green_median_wet','green_median_dry','green_min','green_stdDev','green_median_texture', 
-    #     'red_median','red_median_wet','red_median_dry','red_min', 'red_stdDev', 
-    #     'nir_median','nir_median_wet','nir_median_dry','nir_min','nir_stdDev', 
-    #     'swir1_median','swir1_median_wet','swir1_median_dry','swir1_min', 'swir1_stdDev', 
-    #     'swir2_median', 'swir2_median_wet', 'swir2_median_dry','swir2_min', 'swir2_stdDev',
-    #     'slope'
-    # ]
+
     # lst_properties = arqParam.allFeatures
     # MOSAIC WITH BANDA 2022 
     # https://code.earthengine.google.com/c3a096750d14a6aa5cc060053580b019
@@ -227,13 +219,13 @@ class ClassMosaic_indexs_Spectral(object):
     def agregateBandsIndexRVI(self, img):
     
         rviImgY = img.expression(f"float(b('red_median{self.sufN}') / b('nir_median{self.sufN}'))")\
-                                .rename(['rvi_median']).add(1).multiply(10000).toFloat() 
+                                .rename(['rvi_median']).multiply(10000).toFloat() 
         
         rviImgWet = img.expression(f"float(b('red_median_wet{self.sufN}') / b('nir_median_wet{self.sufN}'))")\
-                                .rename(['rvi_median_wet']).add(1).multiply(10000).toFloat() 
+                                .rename(['rvi_median_wet']).multiply(10000).toFloat() 
 
         rviImgDry = img.expression(f"float(b('red_median_dry{self.sufN}') / b('nir_median_dry{self.sufN}'))")\
-                                .rename(['rvi_median']).add(1).multiply(10000).toFloat()       
+                                .rename(['rvi_median_dry']).multiply(10000).toFloat()       
 
         return img.addBands(rviImgY).addBands(rviImgWet).addBands(rviImgDry) 
 
@@ -298,6 +290,7 @@ class ClassMosaic_indexs_Spectral(object):
         eviImgY = img.expression(
             f"float(2.4 * (b('nir_median{self.sufN}') - b('red_median{self.sufN}')) / (1 + b('nir_median{self.sufN}') + b('red_median{self.sufN}')))")\
                 .add(1).multiply(10000).rename(['evi_median'])     
+                # corregir depois para somar 10 e multiplicar 1000
 
         eviImgWet = img.expression(
             f"float(2.4 * (b('nir_median_wet{self.sufN}') - b('red_median_wet{self.sufN}')) / (1 + b('nir_median_wet{self.sufN}') + b('red_median_wet{self.sufN}')))")\
@@ -383,11 +376,11 @@ class ClassMosaic_indexs_Spectral(object):
         
         return img.addBands(gliImgY).addBands(gliImgWet).addBands(gliImgDry)
 
-    # Shape Index  IF 
+    # Shape Index  IF # deve corregir 
     def agregateBandsIndexShapeI(self, img):    
         shapeImgAY = img.expression(
         f"float((2 * b('red_median{self.sufN}') - b('green_median{self.sufN}') - b('blue_median{self.sufN}')) / (b('green_median{self.sufN}') - b('blue_median{self.sufN}')))")\
-                .rename(['shape_median']).toFloat()  
+                .rename(['shape_median']).toFloat()  # deve corregir 
 
         shapeImgAWet = img.expression(
         f"float((2 * b('red_median_wet{self.sufN}') - b('green_median_wet{self.sufN}') - b('blue_median_wet{self.sufN}')) / (b('green_median_wet{self.sufN}') - b('blue_median_wet{self.sufN}')))")\
@@ -459,12 +452,12 @@ class ClassMosaic_indexs_Spectral(object):
         bsiImgWet = img.expression(
         f"float(((b('swir1_median{self.sufN}') - b('red_median{self.sufN}')) - (b('nir_median{self.sufN}') + b('blue_median{self.sufN}'))) / " + 
                 f"((b('swir1_median{self.sufN}') + b('red_median{self.sufN}')) + (b('nir_median{self.sufN}') + b('blue_median{self.sufN}'))))")\
-                .add(1).multiply(10000).rename(['bsi_median']).toFloat()
+                .add(1).multiply(10000).rename(['bsi_median_wet']).toFloat()
 
         bsiImgDry = img.expression(
         f"float(((b('swir1_median{self.sufN}') - b('red_median{self.sufN}')) - (b('nir_median{self.sufN}') + b('blue_median{self.sufN}'))) / " + 
                 f"((b('swir1_median{self.sufN}') + b('red_median{self.sufN}')) + (b('nir_median{self.sufN}') + b('blue_median{self.sufN}'))))")\
-                .add(1).multiply(10000).rename(['bsi_median']).toFloat()      
+                .add(1).multiply(10000).rename(['bsi_median_dry']).toFloat()      
         
         return img.addBands(bsiImgY).addBands(bsiImgWet).addBands(bsiImgDry)
 
@@ -810,6 +803,23 @@ class ClassMosaic_indexs_Spectral(object):
 
         return img.addBands(indSMA_median).addBands(indSMA_med_wet).addBands(indSMA_med_dry)
 
+    # add bands with slope and hilshade informations 
+    def addSlopeAndHilshade(self, img):
+        # A digital elevation model.
+        # NASADEM: NASA NASADEM Digital Elevation 30m
+        dem = ee.Image('NASA/NASADEM_HGT/001').select('elevation')
+
+        # Calculate slope. Units are degrees, range is [0,90).
+        slope = ee.Terrain.slope(dem).divide(500).toFloat()
+
+        # Use the ee.Terrain.products function to calculate slope, aspect, and
+        # hillshade simultaneously. The output bands are appended to the input image.
+        # Hillshade is calculated based on illumination azimuth=270, elevation=45.
+        terrain = ee.Terrain.products(dem)
+        hillshade = terrain.select('hillshade').divide(500).toFloat()
+
+        return img.addBands(slope.rename('slope')).addBands(hillshade.rename('hillshade'))
+
 
     #endregion
 
@@ -849,7 +859,7 @@ class ClassMosaic_indexs_Spectral(object):
         imageW = self.agregateBandsIndexMBI(imageW) 
         imageW = self.agregateBandsIndexUI(imageW) 
         imageW = self.agregateBandsIndexRI(imageW) 
-        imageW = self.agregateBandsIndexOSAVI(imageW)  #     
+        imageW = self.agregateBandsIndexOSAVI(imageW)  # msavi e gsavi     
         imageW = self.agregateBandsIndexNDDI(imageW)
         imageW = self.agregateBandsIndexNDMI(imageW) 
         imageW = self.agregateBandsIndexNDBI(imageW)   #
@@ -857,7 +867,11 @@ class ClassMosaic_indexs_Spectral(object):
         imageW = self.agregateBandsIndexwetness(imageW)   #   
         imageW = self.agregateBandsIndexBrightness(imageW)  #       
         imageW = self.agregateBandsTexturasGLCM(imageW)     #
+        imageW = self.addSlopeAndHilshade(imageW)
         imageW = self.agregate_Bands_SMA_NDFIa(imageW)
+
+        # nbrImgY, msiImgY, spriImgY
+        # imageW = self.addSlopeAndHilshade(imageW)
 
         return imageW #.select(band_feat)# .addBands(imageF)
 
@@ -926,10 +940,10 @@ class ClassMosaic_indexs_Spectral(object):
             'classification_2024'
         ]
         collection100 = ee.Image(self.options['assetMapbiomas100']).select(lstBandMap)
-        print(collection100.bandNames().getInfo())
+        # print(collection100.bandNames().getInfo())
         
         # print(baciaN5.getInfo())
-        imMasCoinc = None
+        # imMasCoinc = None
         maksEstaveis = None
         areaColeta = None
         # sys.exit()
@@ -948,22 +962,22 @@ class ClassMosaic_indexs_Spectral(object):
         # print("mascara imMaskFire ", imMaskFire.bandNames().getInfo())
         # 1 Concordante, 2 concordante recente, 3 discordante recente,
         # 4 discordante, 5 muito discordante  até 2021
-        imMasCoinc = ee.ImageCollection(self.options['asset_mask_Coincidencia']).mosaic().unmask(0)
+        # imMasCoinc = ee.ImageCollection(self.options['asset_mask_Coincidencia']).mosaic().unmask(0)
         # "classification_2024"
         # carregando os valores de supressão 
         imMaksAlert = (ee.Image(self.options['asset_alerts_Desf']).eq(4)
                                 .Or(ee.Image(self.options['asset_alerts_Desf']).eq(6)))
 
-        imMaskSample = ee.ImageCollection(self.options['asset_mask_toSamples']).mosaic().unmask(0)
+        # imMaskSample = ee.ImageCollection(self.options['asset_mask_toSamples']).mosaic().unmask(0)
 
         maksEstaveisYY = None
         imMaskFireYY = None
-        imMasCoincYY = None
+        # imMasCoincYY = None
         imMaksAlertYY = None
-        imMaskSampleYY = None
+        # imMaskSampleYY = None
         # featCol= ee.FeatureCollection([])
         for anoCount in self.lst_year[:]:      
-            nomeBaciaEx = "gradeROIs_" + str(idCod) + "_" + str(anoCount) + "_wl" 
+            nomeBaciaEx = "gradeROIs_" + str(idCod) + "_" + str(anoCount) 
             if nomeBaciaEx in lista_ids_gradeYY:          
                 bandActiva = 'classification_' + str(anoCount)           
 
@@ -975,16 +989,16 @@ class ClassMosaic_indexs_Spectral(object):
                 if anoCount < 2022:
                     maksEstaveisYY = maksEstaveis.select(f"mask_estavel_{anoCount}").eq(1)
                     imMaskFireYY = imMaskFire.select(f"mask5wfire_{anoCount}").eq(0)
-                    imMasCoincYY = imMasCoinc.select(f"coincidencia_{anoCount}").lt(3)
-                    imMaskSampleYY = imMaskSample.select(f"mask_sample_{anoCount}").eq(1)
+                    # imMasCoincYY = imMasCoinc.select(f"coincidencia_{anoCount}").lt(3) # removidos da segunda coleta
+                    # imMaskSampleYY = imMaskSample.select(f"mask_sample_{anoCount}").eq(1) # removidos da segunda coleta
 
                 
 
                 # print("mascara imMaksAlert ", imMaksAlert.bandNames().getInfo())
                 areaColeta = (maksEstaveisYY.multiply(imMaskFireYY)
                                             .multiply(imMaksAlertYY) 
-                                            .multiply(imMasCoincYY)
-                                            .multiply(imMaskSampleYY)
+                                            # .multiply(imMasCoincYY)  # removidos da segunda coleta
+                                            # .multiply(imMaskSampleYY) # removidos da segunda coleta
                                     )
                 areaColeta = areaColeta.eq(1) # mask of the area for colects
                 
@@ -1051,19 +1065,19 @@ class ClassMosaic_indexs_Spectral(object):
                     img_recEmbNew = self.scaleToNegOneToOne(img_recEmb, val_min, val_max)
                     time.sleep(3)# esperar 8 segundos
 
-                    img_recMosaic = img_recMosaic.addBands(img_recEmbNew)
+                    img_recMosaicnewB = img_recMosaicnewB.addBands(img_recEmbNew)
 
-                img_recMosaic = (img_recMosaic.toUint16()                                        
-                                        .addBands(ee.Image(img_recMosaicnewB))
+                img_recMosaicnewB = (img_recMosaicnewB.toUint16()                                        
+                                        # .addBands(ee.Image(img_recMosaicnewB))
                                         .addBands(map_yearAct)
                                 )
-                img_recMosaic = img_recMosaic.toUint16().updateMask(areaColeta)
+                img_recMosaicnewB = img_recMosaicnewB.toUint16().updateMask(areaColeta)
 
 
                 
 
                 # sampleRegions()
-                ptosTemp = img_recMosaic.sample(
+                ptosTemp = img_recMosaicnewB.sample(
                                     region=  gradeKM,                              
                                     scale= 10,   
                                     numPixels= 100,
@@ -1073,7 +1087,6 @@ class ClassMosaic_indexs_Spectral(object):
                                 )
                 ptosTemp = ptosTemp.filter(ee.Filter.notNull(self.featureBands))
                 # featCol = featCol.merge(ptosTemp)
-
                 
                 self.save_ROIs_toAsset(ee.FeatureCollection(ptosTemp), nomeBaciaEx, idCount)        
 
@@ -1562,12 +1575,12 @@ print("size of grade geral >> ", len(lstIdCode))
 # sys.exit()
 
 
-inicP = 700 # 0, 158
+inicP = 620 # 0, 158
 endP = 800   # 300, 200, 300, 600
 step = 10
 for cc, item in enumerate(lstIdCode[inicP: endP]):
     print(f"# {cc + 1 + inicP} loading geometry grade {item}")   
-    lst_item_yy = [f"gradeROIs_{item}_{myear}_wl" for myear in range(2016, 2026) if f"gradeROIs_{item}_{myear}_wl" not in lstFeatAsset]
+    lst_item_yy = [f"gradeROIs_{item}_{myear}" for myear in range(2016, 2026) if f"gradeROIs_{item}_{myear}_wl" not in lstFeatAsset]
     # print(lst_item_yy)
     if len(lst_item_yy) > 0:
         objetoMosaic_exportROI.iterate_GradesCaatinga([inicP + cc, item], lst_item_yy)

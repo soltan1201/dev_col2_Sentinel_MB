@@ -38,7 +38,7 @@ except:
 param = {
     'asset_rois_grid1': {'id' : 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_byGrades_emb'},
     'asset_bacias_buffer' : 'projects/mapbiomas-workspace/AMOSTRAS/col9/CAATINGA/bacias_hidrografica_caatinga_49_regions',
-    'asset_output': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_merged_IndAll',
+    'asset_output': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_merged_Indall',
     'asset_grad' : 'projects/mapbiomas-workspace/AMOSTRAS/col9/CAATINGA/basegrade30KMCaatinga',
     'anoInicial': 2016,
     'anoFinal': 2024,
@@ -111,6 +111,8 @@ def ask_byGrid_saved( dict_asset, printName, listtoLoad):
     for npath in nlstPathFeats:
         # print(">>> ", npath)
         feat_tmp = ee.FeatureCollection(npath)
+        if '2025' in npath:
+            feat_tmp = feat_tmp.map(lambda feat: feat.set('year', 2025))
         featAllRois = featAllRois.merge(feat_tmp)
     # sys.exit()
     return featAllRois, lstGridFails

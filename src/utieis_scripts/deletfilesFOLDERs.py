@@ -60,8 +60,8 @@ def GetPolygonsfromFolder(assetFolder, sufixo, lstBacias= [], lstYear= [], play_
 
 # asset = {'id': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_byGrades'}
 # asset = {'id': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_byGrades_emb'}
-asset = {'id': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_merged_IndAll'}
-# asset = {'id': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_byGrades_emb'}
+# asset = {'id': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_merged_IndAll'}
+asset = {'id': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/ROIs/ROIs_byGrades_emb'}
 lstbacias = []  # 7764
 lst_years = []
 eliminar_files = True
