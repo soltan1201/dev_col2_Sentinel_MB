@@ -46,8 +46,13 @@ param = {
     'version': 1,
 }
 lst_bands = [f'classification_{yy}' for yy in range(param['year_inic'], param['year_end'] + 1)]
-maps_col = ee.ImageCollection(param['asset_input'])
+maps_col = ee.ImageCollection(param['asset_input']).filter(ee.Filter.eq('version', param['version']))
 lst_idCod = maps_col.reduceColumns(ee.Reducer.toList(), ['system:index']).get('list').getInfo()
+print(f"============ we have {len(lst_idCod)} images =======================")
+
+# for ii in lst_idCod:
+#     print(ii)
+# sys.exit()
 
 def apply_merger(nbacia):
     # loading geometry bacim
@@ -59,7 +64,7 @@ def apply_merger(nbacia):
     map_bands = ee.Image().byte()
     for nyear in range(param['year_inic'], param['year_end'] + 1): 
         for idCod in lst_idCod:
-            if nbacia in idCod and str(nyear) in idCod:
+            if f"_{nbacia}_" in idCod and str(nyear) in idCod:
                 print(f" processing {nbacia} >> {nyear}")
                 map_tmp = ee.Image(os.path.join(param['asset_input'], idCod)).rename(f'classification_{nyear}')
                 ## juntando as bandas 
@@ -116,6 +121,7 @@ nameBacias = [
     '7619', '7443', '7438', '763', '7622'
 ]
 
+nameBacias = ['771', '772']
 
 for cc, _nbacia in enumerate(nameBacias[:]):
     print("-------------------.kml---------------------------------------------")

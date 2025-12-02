@@ -42,8 +42,8 @@ class processo_gapfill(object):
             'asset_gedi': 'users/potapovpeter/GEDI_V27',
             'classMapB': [3, 4, 5, 6, 9, 11, 12, 13, 15, 18, 19, 20, 21, 22, 23, 24, 25, 26, 29, 30, 31, 32, 33, 35, 36, 39, 40, 41, 46, 47, 48, 49, 50, 62],
             'classNew':  [3, 4, 3, 3, 3, 12, 12, 12, 21, 21, 21, 21, 21, 22, 22, 22, 22, 33, 29, 22, 33, 12, 33, 21, 21, 21, 21, 21, 21, 21, 21,  4, 12, 21],
-            'version_input': 1,
-            'version_output': 1,
+            'version_input': 2,
+            'version_output': 2,
             'date_inic': 2016,
             'date_end': 2025
             
@@ -81,7 +81,7 @@ class processo_gapfill(object):
 
         # self.imgClass = self.imgClass.select(self.lstbandNames)
         print("todas as bandas \n === > ", self.imgClass.bandNames().getInfo())
-        sys.exit()
+        # sys.exit()
    
         
         
@@ -149,7 +149,7 @@ class processo_gapfill(object):
             ### ==============================================================####
             baseImgMap = baseImgMap.addBands(newBandActive)    
             print(baseImgMap.bandNames().getInfo())           
-        sys.exit()
+        # sys.exit()
         imageFilledTn = ee.Image.cat(baseImgMap).select(self.lstbandNames)
         return imageFilledTn.updateMask(self.bacia_raster)
 
@@ -169,9 +169,9 @@ class processo_gapfill(object):
                             'source', 'geodatin',
                             'model', "GTB",
                             'type_filter', 'gap_fill',
-                            'collection', '10.0',
+                            'collection', '2.0',
                             'id_bacias', self.id_bacias,
-                            'sensor', 'Landsat',
+                            'sensor', 'Sentinel',
                             'system:footprint' , self.geom_bacia.coordinates()
                         )
         )

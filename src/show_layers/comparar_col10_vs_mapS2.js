@@ -1,9 +1,12 @@
 /**
- * VISUALIZAÇÃO INTERATIVA: LANDSAT Col10 vs SENTINEL-2 (COM MOSAICOS)
- * Período: 2016 - 2025
+ * VISUALIZAÇÃO COMPARATIVA: LANDSAT (Col10) vs SENTINEL-2 (Versões)
+ * Configuração: 3 Painéis (Ano-1, Ano, Ano+1)
+ * Atualização: Suporte a seletor de Versão e visualização de TODAS as bacias.
  */
 
 var palettes = require('users/mapbiomas/modules:Palettes.js');
+
+// --- CONFIGURAÇÃO E ASSETS ---
 var vis = {
     mosaico: {
         min: 0,
@@ -21,190 +24,287 @@ var vis = {
     }
 };
 
-// --- DEFINIÇÃO DOS ASSETS ---
 var param = {
-    // Classificações
-    asset_map_sentinel: 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/POS-CLASS/merger',
-    asset_map_landsat: 'projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_integration_v2',     
+    // CAMINHOS BASE (A lógica de versão será aplicada sobre o sentinel)
+    // ATENÇÃO: Ajuste a string base conforme sua estrutura de pastas real
+    asset_map_sentinel_base: 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/POS-CLASS/merger',
     
-    // Auxiliares
+    asset_map_landsat: 'projects/mapbiomas-public/assets/brazil/lulc/collection10/mapbiomas_brazil_collection10_integration_v2',    
+    
+    // Assets auxiliares
     asset_bacias: 'projects/mapbiomas-workspace/AMOSTRAS/col9/CAATINGA/bacias_hidrografica_caatinga_49_regions',
     asset_biomas_raster: 'projects/mapbiomas-workspace/AUXILIAR/biomas-raster-41', 
-    
-    // Mosaicos Visuais
     asset_mosaic_sentinelp2: 'projects/nexgenmap/MapBiomas2/SENTINEL/mosaics-3',
     asset_mosaic_sentinelp1: 'projects/mapbiomas-mosaics/assets/SENTINEL/BRAZIL/mosaics-3',
-    asset_collectionId: 'LANDSAT/COMPOSITES/C02/T1_L2_32DAY', // Landsat Raw
+    asset_collectionId: 'LANDSAT/COMPOSITES/C02/T1_L2_32DAY',
     
+    // Anos disponíveis
     nyears: [ '2016','2017','2018','2019','2020','2021','2022','2023','2024','2025' ],
 };
 
-// --- CARREGAMENTO DAS IMAGENS DE CLASSIFICAÇÃO ---
-var mapLandsat = ee.Image(param.asset_map_landsat);
+// --- CARREGAMENTO DE DADOS ESTÁTICOS ---
+var bacias = ee.FeatureCollection(param.asset_bacias)   
+                    .map(function(feat){return feat.set('idCod', 1)});
 
-// Sentinel: Como é uma pasta ("merger"), carregamos como coleção e fazemos o mosaico
-var mapSentinel = ee.ImageCollection(param.asset_map_sentinel).mosaic(); 
-
-// --- CONFIGURAÇÃO DE BACIAS E MÁSCARAS ---
-var bacias = ee.FeatureCollection(param.asset_bacias)
-                 .map(function(feat){return feat.set('idCod', 1)});
-
-// Cria máscara visual (opcional)
-var maskBacia = bacias.reduceToImage(['idCod'], ee.Reducer.first());
-
-// Centraliza na bacia 7622 (Exemplo)
-var baciaFoco = bacias.filter(ee.Filter.eq('nunivotto4', '7622')); 
-Map.centerObject(baciaFoco, 10);
+// Landsat é fixo (Col 10 Integration)
+var imgLandsatCol10 = ee.Image(param.asset_map_landsat);
 
 // --- INTERFACE ---
-Map.setOptions('HYBRID');
-Map.style().set('cursor', 'crosshair');
+ui.root.clear(); 
 
-// Painéis
-var legendPanel = ui.Panel({
-    style: {
-        position: 'bottom-left',
-        width: '450px',
-        height: '400px',
-        padding: '8px',
-        shown: false 
-    }
+// Painel lateral
+var panel = ui.Panel({style: {width: '250px', stretch: 'vertical', padding: '10px'}});
+panel.add(ui.Label('Comparativo LULC', {fontWeight: 'bold', fontSize: '20px', color: '#2c3e50'}));
+panel.add(ui.Label('Landsat Col10 vs Sentinel', {fontSize: '14px', color: 'gray'}));
+panel.add(ui.Label('__________________________'));
+
+// 1. Seletor de Bacia
+panel.add(ui.Label('1. Escolha a Bacia:', {fontWeight: 'bold'}));
+var selectBacia = ui.Select({
+    placeholder: 'Carregando bacias...', 
+    style: {width: '95%'} 
 });
-Map.add(legendPanel);
+panel.add(selectBacia);
 
-var inspectorPanel = ui.Panel({style: {position: 'top-right'}});
-Map.add(inspectorPanel);
-
-// --- FUNÇÃO DE GRÁFICO (CLIQUE) ---
-function getCollectionFromBands(image, label, region) {
-    var years = ee.List.sequence(2016, 2025);
-    var imageList = years.map(function(y) {
-        var yearStr = ee.Number(y).format('%.0f');
-        var bandName = ee.String('classification_').cat(yearStr);
-        
-        return ee.Algorithms.If(
-            image.bandNames().contains(bandName),
-            image.select([bandName], ['classification'])
-                 .set('year', y)
-                 .set('source', label),
-            null
-        );
-    });
-    return ee.ImageCollection(imageList.removeAll([null]));
-}
-
-Map.onClick(function(coords) {
-    legendPanel.style().set('shown', true);
-    legendPanel.clear();
-    legendPanel.add(ui.Label('Carregando...', {color: 'gray'}));
-    
-    var point = ee.Geometry.Point(coords.lon, coords.lat);
-    
-    // Ponto vermelho (Camada 4 - topo)
-    var dot = ui.Map.Layer(point, {color: 'red'}, 'Ponto Clicado');
-    Map.layers().set(4, dot); 
-
-    var colLandsat = getCollectionFromBands(mapLandsat, 'Landsat', point);
-    var colSentinel = getCollectionFromBands(mapSentinel, 'Sentinel', point);
-    var mergedCol = colLandsat.merge(colSentinel);
-
-    var chart = ui.Chart.image.seriesByRegion({
-        imageCollection: mergedCol,
-        regions: point,
-        reducer: ee.Reducer.first(),
-        band: 'classification',
-        scale: 30,
-        xProperty: 'year',
-        seriesProperty: 'source'
-    })
-    .setChartType('ScatterChart')
-    .setOptions({
-        title: 'Trajetória: Landsat vs Sentinel',
-        vAxis: {title: 'Classe', format: '0'},
-        hAxis: {title: 'Ano', format: '####'},
-        lineWidth: 2,
-        pointSize: 5,
-        series: {
-            0: {color: 'blue', labelInLegend: 'Landsat'},
-            1: {color: 'red', labelInLegend: 'Sentinel'}
-        }
-    });
-
-    legendPanel.clear();
-    legendPanel.add(chart);
-    inspectorPanel.clear();
-    inspectorPanel.add(ui.Label('Lat: ' + coords.lat.toFixed(5) + ' Lon: ' + coords.lon.toFixed(5)));
+// 2. Seletor de Versão Sentinel
+panel.add(ui.Label('2. Versão Sentinel:', {fontWeight: 'bold', margin: '10px 0 0 0'}));
+var selectVersion = ui.Select({
+    items: [
+        {label: 'Versão 1', value: 'v1'}, // Ajuste os values conforme o nome real do seu asset
+        {label: 'Versão 2', value: 'v2'},
+        {label: 'Versão 3', value: 'v3'}
+    ],
+    value: 'v1', // Valor padrão
+    style: {width: '95%'}
 });
+panel.add(selectVersion);
 
-// --- SLIDER ---
-var labelTitle = ui.Label('Seletor de Ano (2016-2025)', {fontWeight: 'bold'});
+// 3. Slider de Ano
+panel.add(ui.Label('3. Janela Central (Ano):', {fontWeight: 'bold', margin: '10px 0 0 0'}));
 var sliderAno = ui.Slider({
     min: 2016,
-    max: 2025,
-    value: 2020,
+    max: 2024,
+    value: 2020, 
     step: 1,
-    style: {stretch: 'horizontal', width: '300px'},
-    onChange: updateLayers
+    style: {width: '95%'}
 });
+panel.add(sliderAno);
 
-var panelSlider = ui.Panel({
-    widgets: [labelTitle, sliderAno],
-    layout: ui.Panel.Layout.flow('vertical'),
-    style: {position: 'bottom-right', width: '320px', padding: '10px'}
-});
-Map.add(panelSlider);
+// Legenda Info
+panel.add(ui.Label('__________________________'));
+panel.add(ui.Label('Camadas:', {fontWeight: 'bold'}));
+panel.add(ui.Label('• Fundo: Mosaico L8/S2'));
+panel.add(ui.Label('• Mapa Landsat (Integration v2)'));
+panel.add(ui.Label('• Mapa Sentinel (Versão Selecionada)'));
 
-// --- ATUALIZAÇÃO DAS CAMADAS ---
-function updateLayers() {
-    var year = sliderAno.getValue();
-    var bandName = 'classification_' + year;
-    labelTitle.setValue('Visualizando Ano: ' + year);
-
-    // 1. MOSAICO LANDSAT (Raw Composite)
-    var mosaicoL8 = ee.ImageCollection(param.asset_collectionId)
-                        .filterBounds(baciaFoco.geometry()) // Otimização espacial
-                        .filterDate(ee.Date.fromYMD(year, 1, 1), ee.Date.fromYMD(year, 12, 31))
-                        .median() // Alterado de mosaic() para median() para reduzir nuvens
-                        .updateMask(maskBacia)
-                        .select(['red', 'green', 'blue']);
-
-    var layerLandsatMos = ui.Map.Layer(mosaicoL8, vis.vismosaicoGEE, '1. Mosaico Landsat (' + year + ')', false);
-
-    // 2. MOSAICO SENTINEL (Lógica condicional de assets)
-    var colS2 = (year < 2024) 
-        ? ee.ImageCollection(param.asset_mosaic_sentinelp1) 
-        : ee.ImageCollection(param.asset_mosaic_sentinelp2);
-        
-    var mosaicoS2 = colS2.select(['red_median', 'green_median', 'blue_median'])
-                         .filterBounds(baciaFoco.geometry())
-                         .filter(ee.Filter.eq('year', year))
-                         .mosaic()
-                         .updateMask(maskBacia);
-                         
-    var layerSentinelMos = ui.Map.Layer(mosaicoS2, vis.mosaico, '2. Mosaico Sentinel (' + year + ')', false);   
-
-    // 3. CLASSIFICAÇÃO LANDSAT
-    var layerLandsatClass = ui.Map.Layer(
-        mapLandsat.select(bandName).updateMask(maskBacia), 
-        vis.map_class, 
-        '3. Class. Landsat (' + year + ')'
-    );
-
-    // 4. CLASSIFICAÇÃO SENTINEL
-    // Simplesmente tenta selecionar a banda. Se não existir no mosaico, fica transparente.
-    var layerSentinelClass = ui.Map.Layer(
-        mapSentinel.select(bandName).updateMask(maskBacia), 
-        vis.map_class, 
-        '4. Class. Sentinel (' + year + ')'
-    );
-
-    // --- ORDEM NO MAPA ---
-    // Índices baixos = Fundo // Índices altos = Topo
-    Map.layers().set(0, layerLandsatMos);   // Fundo
-    Map.layers().set(1, layerSentinelMos);  // Fundo
-    Map.layers().set(2, layerLandsatClass); // Meio (Transparente onde tem nodata)
-    Map.layers().set(3, layerSentinelClass);// Topo
+// Widget de estilos
+var stylesWidget = {
+    labels: {fontWeight: 'bold', textAlign: 'center', backgroundColor: 'rgba(255, 255, 255, 0.9)', padding: '4px', margin: '0 0 0 40%'},
+    controlsVis: {layerList: true, zoomControl: false, mapTypeControl: false, scaleControl: true}
 }
 
-// Inicializa
-updateLayers();
+// --- CONSTRUÇÃO DOS MAPAS (3 PAINÉIS) ---
+var mapAnt = ui.Map();
+var mapAtual = ui.Map();
+var mapPost = ui.Map();
+ui.Map.Linker([mapAnt, mapAtual, mapPost]);
+
+mapAnt.setControlVisibility(stylesWidget.controlsVis);
+mapAtual.setControlVisibility(stylesWidget.controlsVis);
+mapPost.setControlVisibility(stylesWidget.controlsVis);
+
+// Títulos sobre os mapas
+var tituloAnt = ui.Label('Ano anterior', stylesWidget.labels);
+var tituloAtual = ui.Label('Ano selecionado', stylesWidget.labels);
+var tituloPost = ui.Label('Ano posterior', stylesWidget.labels);
+
+mapAnt.add(tituloAnt);
+mapAtual.add(tituloAtual);
+mapPost.add(tituloPost);
+
+// Layout Horizontal
+var mapasHorizontal = ui.Panel({
+    widgets: [mapAnt, mapAtual, mapPost], 
+    layout: ui.Panel.Layout.Flow('horizontal'), 
+    style: {stretch: 'both'}
+});
+
+var painelCompleto = ui.Panel({
+    widgets: [panel, mapasHorizontal],
+    layout: ui.Panel.Layout.Flow('horizontal'),
+    style: {stretch: 'both'}
+});
+
+ui.root.add(painelCompleto);
+
+// --- LÓGICA DE ATUALIZAÇÃO ---
+
+// Arrays para rastrear camadas e remover depois
+var camadasAnt = [];
+var camadasAtual = [];
+var camadasPost = [];
+
+function atualizarInterface() {   
+    // Limpa camadas antigas
+    camadasAnt.forEach(function(layer) { mapAnt.layers().remove(layer); });
+    camadasAtual.forEach(function(layer) { mapAtual.layers().remove(layer); });
+    camadasPost.forEach(function(layer) { mapPost.layers().remove(layer); });
+    camadasAnt = [];
+    camadasAtual = [];
+    camadasPost = [];
+
+    var bacia_selected = selectBacia.getValue();
+    var version_selected = selectVersion.getValue();
+    var anoCentral = sliderAno.getValue();
+    
+    if (!bacia_selected) return;
+
+    // --- 1. DEFINIR GEOMETRIA E MÁSCARA ---
+    var featBacia, geomBacia;
+    
+    if (bacia_selected === 'ALL') {
+        // Se for ALL, usamos todas as bacias. 
+        featBacia = bacias; 
+        geomBacia = bacias.geometry(); // Geometria unificada (pode ser pesada dependendo da complexidade)
+    } else {
+        // Filtra bacia específica
+        featBacia = bacias.filter(ee.Filter.eq('nunivotto4', bacia_selected));
+        geomBacia = featBacia.geometry();
+    }
+
+    // Cria a máscara visual (reduz a feature collection a uma imagem raster)
+    var maskBacia = featBacia.reduceToImage(['idCod'], ee.Reducer.first());
+
+    // --- 2. DEFINIR ASSET SENTINEL DINÂMICO ---
+    // AQUI VOCÊ CONFIGURA COMO O NOME MUDA BASEADO NA VERSÃO
+    // Exemplo atual: assume que existe 'merger', 'merger_v2', 'merger_v3' ou pastas diferentes
+    var assetSentinelPath = param.asset_map_sentinel_base;
+    
+    if (version_selected !== 'v1') {
+        // Se não for v1, adiciona sufixo ou muda o caminho. Exemplo:
+        // Se sua v2 for ".../merger_v2", use:
+        assetSentinelPath = assetSentinelPath + '_' + version_selected; 
+        
+        // Se forem pastas diferentes, você pode fazer:
+        // assetSentinelPath = 'projects/.../S2/POS-CLASS/' + version_selected + '/merger';
+    }
+    
+    print('Carregando Sentinel Asset:', assetSentinelPath);
+    
+    // Tenta carregar a coleção Sentinel. Usamos try-catch visual (não existe try-catch real em JS client do GEE para assets inexistentes, mas o GEE lançará erro no console se não existir)
+    var imgSentinelCol10 = ee.ImageCollection(assetSentinelPath).mosaic();
+
+
+    // Define os anos vizinhos
+    var anosLocais = [
+        Math.max(2016, anoCentral - 1),
+        anoCentral,
+        Math.min(2026, anoCentral + 1)
+    ];
+
+    // Atualiza Labels
+    tituloAnt.setValue('Ano: ' + anosLocais[0]);
+    tituloAtual.setValue('Ano: ' + anosLocais[1]);
+    tituloPost.setValue('Ano: ' + anosLocais[2]);
+
+    var maps = [mapAnt, mapAtual, mapPost];
+    var listasCamadas = [camadasAnt, camadasAtual, camadasPost];
+
+    // Loop para preencher os 3 mapas
+    anosLocais.forEach(function(ano, i) {
+        var map = maps[i];
+        var listaCamadas = listasCamadas[i];
+        
+        // --- A. Mosaico Landsat (Fundo) ---
+        // Filtrar bounds ajuda na performance
+        var mosaicoL8 = ee.ImageCollection(param.asset_collectionId)
+                            .filterBounds(geomBacia) 
+                            .filterDate(ee.Date.fromYMD(ano, 1, 1), ee.Date.fromYMD(ano, 12, 31))
+                            .mosaic().updateMask(maskBacia);
+        var layerMosaicoL8 = ui.Map.Layer(mosaicoL8, vis.vismosaicoGEE, 'Mosaico L8 ' + ano, false);
+        
+        // --- B. Mosaico Sentinel (Fundo) ---
+        var mosaicoS2 = null; 
+        if (ano < 2024){ 
+            mosaicoS2 = ee.ImageCollection(param.asset_mosaic_sentinelp1);
+        } else {
+            mosaicoS2 = ee.ImageCollection(param.asset_mosaic_sentinelp2)
+        }
+        mosaicoS2 = mosaicoS2.filterBounds(geomBacia)
+                            .filter(ee.Filter.eq('year', ano))
+                            .mosaic().updateMask(maskBacia);
+        var layerMosaicoS2 = ui.Map.Layer(mosaicoS2, vis.mosaico, 'Mosaico S2 ' + ano, false);
+        
+        // --- C. Classificação LANDSAT Col 10 ---
+        var layerLandsat = null;
+        if (ano <= 2025) {
+            var nomeBanda = 'classification_' + ano;
+            // Verifica se a banda existe (opcional, mas evita erros se o ano for futuro demais)
+            var classLandsat = imgLandsatCol10.select([nomeBanda]).updateMask(maskBacia);
+            layerLandsat = ui.Map.Layer(classLandsat, vis.map_class, 'Landsat Col10 (' + ano + ')');
+        }
+
+        // --- D. Classificação SENTINEL-2 (Versão Selecionada) ---
+        var layerSentinel = null;
+        var nomeBandaS2 = 'classification_' + ano; 
+        
+        // Nota: O Sentinel geralmente cobre uma série temporal menor ou igual.
+        var classSentinel = imgSentinelCol10.select([nomeBandaS2]).updateMask(maskBacia);
+        layerSentinel = ui.Map.Layer(classSentinel, vis.map_class, 'Sentinel (' + version_selected + ') ' + ano, true);
+    
+        // Centraliza mapa no painel do meio
+        if (i === 1) {
+            // Se for ALL, centraliza na geometria total, se não, na bacia
+            map.centerObject(featBacia, bacia_selected === 'ALL' ? 6 : 10);
+        }
+
+        // Adiciona na ordem
+        map.layers().add(layerMosaicoL8);
+        map.layers().add(layerMosaicoS2);
+        
+        if(layerLandsat) {
+            map.layers().add(layerLandsat);
+            listaCamadas.push(layerLandsat);
+        }
+        
+        if (layerSentinel) {
+            map.layers().add(layerSentinel);
+            listaCamadas.push(layerSentinel);
+        }
+        
+        listaCamadas.push(layerMosaicoL8);
+        listaCamadas.push(layerMosaicoS2);
+    });
+}
+
+// --- PREPARAÇÃO LISTA DE BACIAS ---
+var nameBacias = [
+    '765', '7544', '7541', '7411', '746', '7591', '7592', 
+    '761111', '761112', '7612', '7613', '7614', '7615', 
+    '771', '7712', '772', '7721', '773', '7741', '7746', '7754', 
+    '7761', '7764',   '7691', '7581', '7625', '7584', '751', 
+    '752', '7616', '745', '7424', '7618', '7561', '755', '7617', 
+    '7564', '7422', '76116', '7671', '757', '766', '753', '764',
+    '7619', '7443', '7438', '763', '7622'
+]
+
+// Preenche lista de bacias + ALL
+ee.List(nameBacias).sort().evaluate(function(codigos) {
+    var opcoes = [];
+    
+    // Adiciona opção ALL no topo
+    opcoes.push({label: 'TODAS (ALL)', value: 'ALL'});
+    
+    // Adiciona as demais
+    codigos.forEach(function(c) {
+        opcoes.push({label: String(c), value: c});
+    });
+    
+    selectBacia.items().reset(opcoes);
+    selectBacia.setValue(opcoes[0].value); // Seta 'ALL' como padrão, ou mude para index 1 para pegar a primeira bacia
+});
+
+// Event Listeners
+selectBacia.onChange(atualizarInterface);
+selectVersion.onChange(atualizarInterface);
+sliderAno.onChange(atualizarInterface);

@@ -80,4 +80,4 @@ lsBacias = [
 
 eliminar_files = False
 # lstyear=[2025], 
-Get_Remove_Array_from_ImgCol(asset, play_eliminar= eliminar_files)  
+Get_Remove_Array_from_ImgCol(asset, play_eliminar= eliminar_files, lstBacias= [771, 772] )  

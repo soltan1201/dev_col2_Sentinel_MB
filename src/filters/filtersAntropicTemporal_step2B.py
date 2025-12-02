@@ -36,25 +36,25 @@ class processo_filterTemporal(object):
 
     options = {
             # 'output_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/POS-CLASS/Frequency',
-            'output_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/POS-CLASS/TemporalA',
-            # 'input_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/POS-CLASS/Spatials',
-            'input_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/POS-CLASS/Temporal',
+            'output_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/POS-CLASS/TemporalA',
+            'input_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/S2/POS-CLASS/TemporalN',
+            # 'input_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/POS-CLASS/Temporal',
             # 'input_asset': 'projects/mapbiomas-workspace/AMOSTRAS/col10/CAATINGA/POS-CLASS/Gap-fill',
             'asset_bacias_buffer' : 'projects/mapbiomas-workspace/AMOSTRAS/col9/CAATINGA/bacias_hidrografica_caatinga_49_regions',   
             'classMapB': [3, 4, 5, 6, 9, 11, 12, 13, 15, 18, 19, 20, 21, 22, 23, 24, 25, 26, 29, 30, 31, 32, 33, 35, 36, 39, 40, 41, 46, 47, 48, 49, 50, 62],
             'classNew':  [3, 4, 4, 4, 4, 12, 12, 12, 21, 21, 21, 21, 21, 22, 22, 22, 22, 33, 29, 22, 33, 12, 33, 21, 21, 21, 21, 21, 21, 21, 21, 12,  4, 21], 
             'classNat':  [1, 1, 1, 1, 1,  1,  1,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  0],    
-            'last_year' : 2024,
-            'first_year': 1985,
-            'janela_input': 5,
+            'last_year' : 2025,
+            'first_year': 2016,
+            'janela_input': 4,
             'janela_output': 5,
             'step': 1
         }
 
     def __init__(self, name_bacia):
         self.id_bacias = name_bacia
-        self.versoutput = 10
-        self.versionInput = 10
+        self.versoutput = 1
+        self.versionInput = 1
         self.geom_bacia = (ee.FeatureCollection(self.options['asset_bacias_buffer'])
                     .filter(ee.Filter.eq('nunivotto4', name_bacia))
         )
@@ -84,8 +84,7 @@ class processo_filterTemporal(object):
             self.imgClass = self.imgClass.filter(ee.Filter.eq('janela', self.options['janela_input']))
 
         self.imgClass =self.imgClass.first()
-        if name_bacia == '765':
-            print(" list of bands  loaded \n  ", self.imgClass.bandNames().getInfo())
+        
 
         self.imgReclass = ee.Image().byte()
         for yband in self.lstbandNames:
@@ -658,7 +657,7 @@ listaNameBacias = [
     '7619', '7443', '7438', '763', '7622', '752'
 ]
 # listaNameBacias = [ "7613","7746","7754","7741","773","761112","7591","7581","757"]
-listaNameBacias = [ "7613","7746","7741","7581","757","7591"]  # 
+# listaNameBacias = [ "7613","7746","7741","7581","757","7591"]  # 
 # listaNameBacias = ["7591"]
 # listaNameBacias = ['7411'] 
 print(" quantidade de imagens a serem revisadas >>>  ", len(listaNameBacias))
@@ -700,7 +699,7 @@ for cc, idbacia in enumerate(listaNameBacias[:]):
     else: 
         if idbacia not in lstBacias:
             # cont = gerenciador(cont)            
-            print("----- PROCESSING BACIA {} -------".format(idbacia)) 
+            print(f"----- #{cc} PROCESSING BACIA {idbacia} -------") 
             aplicando_TemporalFilter = processo_filterTemporal(idbacia)            
             aplicando_TemporalFilter.applyTemporalFilter(show_interval)
             if cc == 0:
